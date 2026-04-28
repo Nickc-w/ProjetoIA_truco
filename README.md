@@ -41,9 +41,9 @@ O jogo segue as principais regras do Truco:
 
 ## Limitações
 
-Para simplificação do projeto, algumas regras não foram implementadas:
+Para simplificação do projeto, algumas regras NÃO foram implementadas:
 
-- Jogo em duplas (1x1)  
+- Jogo em duplas (2x2)  
 - Pedido de Truco (3, 6, 9, 12 pontos)  
 - Blefe e estratégias avançadas  
 
