@@ -48,11 +48,11 @@ Para simplificação do projeto, algumas regras não foram implementadas:
 - Blefe e estratégias avançadas  
 
 ## Autores
-### Nicolly Cândida Santa Cruz
-### Pedro Cerqueira Rosa de Resende
-### Ryan
-### Arthur torquato
-### Letícia Borsaro
+  - Nicolly Cândida Santa Cruz
+  - Pedro Cerqueira Rosa de Resende
+  - Ryan
+  - Arthur torquato
+  - Letícia Borsaro
 
 ## Como executar o projeto
 
