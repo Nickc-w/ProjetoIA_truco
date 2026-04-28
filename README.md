@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Truco Simplificado em Python – Interface Gráfica com Tkinter
 
 ## Sobre o Projeto
@@ -68,3 +69,6 @@ pip install pillow
 ```bash
 python truco.py
 ```
+=======
+# ProjetoIA_truco
+>>>>>>> f3d361a4b32ca96d2ffbb9e4e0598fb9dbef64b2
