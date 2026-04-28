@@ -43,7 +43,7 @@ O jogo segue as principais regras do Truco:
 
 Para simplificação do projeto, algumas regras não foram implementadas:
 
-- Jogo em duplas (2x2)  
+- Jogo em duplas (1x1)  
 - Pedido de Truco (3, 6, 9, 12 pontos)  
 - Blefe e estratégias avançadas  
 
