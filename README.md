@@ -49,10 +49,10 @@ Para simplificação do projeto, algumas regras não foram implementadas:
 
 ## Autores
 ### Nicolly Cândida Santa Cruz
-###
-###
-###
-###
+### Pedro Cerqueira Rosa de Resende
+### Ryan
+### Arthur torquato
+### Letícia Borsaro
 
 ## Como executar o projeto
 
@@ -69,5 +69,5 @@ pip install pillow
 ```bash
 python truco.py
 ```
-=======
+
 
