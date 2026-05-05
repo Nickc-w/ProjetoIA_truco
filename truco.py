@@ -145,7 +145,7 @@ class TrucoGUI:
         self.pontos_jogador = 0
         self.pontos_cpu = 0
 
-        # 🧹 LIMPA MESA (CORREÇÃO)
+        # LIMPA MESA 
         self.label_cpu_mesa.config(image='')
         self.label_jogador_mesa.config(image='')
         self.label_cpu_mesa.image = None
