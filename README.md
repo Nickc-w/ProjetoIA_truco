@@ -64,7 +64,8 @@ Para simplificação do projeto, algumas regras NÃO foram implementadas:
 pip install pillow
 ```
 
-3. Execute no terminal:
+3. Execute o arquivo `truco.py` utilizando o botão Run da sua IDE
+ou pelo terminal:
 
 ```bash
 python truco.py
