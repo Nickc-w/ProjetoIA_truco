@@ -35,7 +35,11 @@ class TrucoGUI:
         self.root = root
         self.root.title("Truco 1v1")
         self.root.configure(bg='#0b6623')
-        self.root.geometry("900x580")
+        self.root.geometry("900x650") #aumentei de 580 para 650 por causa do score
+
+        # adicionado: 
+        # ===== SCORE =====
+        self.score_total = 0
 
         # ===== IMAGENS =====
         self.imagens = {}
@@ -52,6 +56,11 @@ class TrucoGUI:
         self.verso = ImageTk.PhotoImage(
             Image.open("cartasImg/virada.png").resize((80,120))
         )
+
+        # adicionado: 
+        # ===== PLACAR SCORE =====
+        self.label_score = tk.Label(root, text=f"Score: ", font=('Arial', 14, 'bold'), bg='#0b6623', fg='yellow')
+        self.label_score.pack(pady=5)
 
         # ===== CPU =====
         self.frame_cpu = tk.Frame(root, bg='#0b6623')
@@ -102,7 +111,23 @@ class TrucoGUI:
                                     bg='#0b6623', fg='white')
         self.label_status.pack()
 
+        # adicionado: (AVALIAR)
+        self.label_feedback_score = tk.Label(root, text="", font=('Arial',10, 'italic'), bg='#0b6623', fg='cyan')
+        self.label_feedback_score.pack()
+
         self.nova_rodada()
+
+    # adicionado: (AVALIAR)
+    def atualizar_score(self, pontos, motivo):
+        #Atualiza a pontuação total e exibe um feedback visual do motivo
+        self.score_total += pontos
+
+
+        self.label_score.config(text=f"Score: {self.score_total}")
+        self.label_feedback_score.config(text=f"{motivo}")
+
+        # mostra o score no terminal
+        print(f"[{motivo}] -> Ganho: {pontos} pontos | Score Total: {self.score_total} pontos")
 
     def animar_carta(self, label, img, x0, y0, xf, yf):
         label.config(image=img)
@@ -129,6 +154,9 @@ class TrucoGUI:
         mover()
 
     def nova_rodada(self):
+        # NOVA PARTIDA NO TERMINAL
+        print("\n" + "=" * 10 + " NOVA PARTIDA " + "=" * 10)
+
         baralho = gerar_baralho()
         random.shuffle(baralho)
 
@@ -150,6 +178,8 @@ class TrucoGUI:
         self.label_jogador_mesa.config(image='')
         self.label_cpu_mesa.image = None
         self.label_jogador_mesa.image = None
+        # adicionado: 
+        self.label_feedback_score.config(text="") #limpa feedback de score
 
         for i in range(3):
             carta = self.jogador[i]
@@ -179,14 +209,30 @@ class TrucoGUI:
         v1 = valor_carta(carta_jogador, self.manilha)
         v2 = valor_carta(carta_cpu, self.manilha)
 
+        print(f"Rodada {self.rodadas + 1}: Você jogou [{carta_jogador}] e a CPU jogou [{carta_cpu}]")
+
         if v1 > v2:
             self.pontos_jogador += 1
             resultado = "Você ganhou"
+
+            # adicionado: checagem de eficiência no uso da manilha
+            if v1 < 100: #verifica que ele não usou manilha mas ganhou mesmo assim
+                self.atualizar_score(15,"Vitória sem gastar Manilha (+15)")
+            else: #vitória normal
+                self.atualizar_score(10,"Vitória na Rodada (+10)")
+
         elif v2 > v1:
             self.pontos_cpu += 1
             resultado = "CPU ganhou"
+
+            # adicionado: checa se perdeu usando a manilha
+            if v1 >= 100: # se usou manilha e perdeu
+                self.atualizar_score(-25, "Desperdício de Manilha (-25)")
+            else: #perda no geral
+                self.atualizar_score(-10, "Derrota na Rodada (-10)")
         else:
             resultado = "Empate"
+            self.atualizar_score(0, "Rodada Empatada (0)")
 
         self.rodadas += 1
 
@@ -195,15 +241,22 @@ class TrucoGUI:
         )
 
         if self.pontos_jogador == 2 or self.pontos_cpu == 2 or self.rodadas == 3:
+            #adicionado: trava os outros botões para evitar jogadas na hora errada e confusões no score
+            for btn in self.cartas_btn:
+                btn.config(state='disabled')
+
             self.root.after(1000, self.fim_partida)
 
     def fim_partida(self):
         if self.pontos_jogador > self.pontos_cpu:
-            texto = "Você venceu!"
+            texto = "Você venceu a mão!"
+            self.atualizar_score(50,"Vitória da Mão (+50 pontos)")
         elif self.pontos_cpu > self.pontos_jogador:
-            texto = "CPU venceu!"
+            texto = "CPU venceu a mão!"
+            self.atualizar_score(-20, "Derrota da Mão (-20 pontos)")
         else:
-            texto = "Empate!"
+            texto = "Empate na mão!"
+            self.atualizar_score(0, "Empate Geral (0 pontos)")
 
         self.label_status.config(text=texto)
         self.root.after(2000, self.nova_rodada)
