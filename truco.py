@@ -127,7 +127,7 @@ class TrucoGUI:
         self.label_feedback_score.config(text=f"{motivo}")
 
         # mostra o score no terminal
-        print(f"[{motivo}] -> Ganho: {pontos} pontos | Score Total: {self.score_total} pontos")
+        print(f"[{motivo}] -> Ganho: {pontos} pontos | Score Total da CPU: {self.score_total} pontos")
 
     def animar_carta(self, label, img, x0, y0, xf, yf):
         label.config(image=img)
@@ -248,11 +248,11 @@ class TrucoGUI:
             self.root.after(1000, self.fim_partida)
 
     def fim_partida(self):
-        if self.pontos_jogador > self.pontos_cpu:
-            texto = "Você venceu a mão!"
+        if self.pontos_jogador < self.pontos_cpu:
+            texto = "CPU venceu a mão!"
             self.atualizar_score(50,"Vitória da Mão (+50 pontos)")
         elif self.pontos_cpu > self.pontos_jogador:
-            texto = "CPU venceu a mão!"
+            texto = "CPU perdeu a mão!"
             self.atualizar_score(-20, "Derrota da Mão (-20 pontos)")
         else:
             texto = "Empate na mão!"
