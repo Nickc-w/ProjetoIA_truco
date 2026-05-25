@@ -211,19 +211,19 @@ class TrucoGUI:
 
         print(f"Rodada {self.rodadas + 1}: Você jogou [{carta_jogador}] e a CPU jogou [{carta_cpu}]")
 
-        if v1 > v2:
+        if v2 > v1:
             self.pontos_jogador += 1
-            resultado = "Você ganhou"
+            resultado = "CPU ganhou! Score aumentado"
 
             # adicionado: checagem de eficiência no uso da manilha
-            if v1 < 100: #verifica que ele não usou manilha mas ganhou mesmo assim
+            if v2 < 100: #verifica que ele não usou manilha mas ganhou mesmo assim
                 self.atualizar_score(15,"Vitória sem gastar Manilha (+15)")
             else: #vitória normal
                 self.atualizar_score(10,"Vitória na Rodada (+10)")
 
-        elif v2 > v1:
+        elif v1 > v2:
             self.pontos_cpu += 1
-            resultado = "CPU ganhou"
+            resultado = "CPU perdeu! Score reduzido :("
 
             # adicionado: checa se perdeu usando a manilha
             if v1 >= 100: # se usou manilha e perdeu
@@ -248,11 +248,11 @@ class TrucoGUI:
             self.root.after(1000, self.fim_partida)
 
     def fim_partida(self):
-        if self.pontos_jogador > self.pontos_cpu:
-            texto = "Você venceu a mão!"
-            self.atualizar_score(50,"Vitória da Mão (+50 pontos)")
-        elif self.pontos_cpu > self.pontos_jogador:
+        if self.pontos_cpu > self.pontos_jogador:
             texto = "CPU venceu a mão!"
+            self.atualizar_score(50,"Vitória da Mão (+50 pontos)")
+        elif self.pontos_cpu < self.pontos_jogador:
+            texto = "CPU perdeu a mão!"
             self.atualizar_score(-20, "Derrota da Mão (-20 pontos)")
         else:
             texto = "Empate na mão!"
