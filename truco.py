@@ -24,7 +24,9 @@ def valor_carta(carta, manilha):
     naipe = carta[-1]
 
     if valor == manilha:
-        ordem_naipes = ['♣','♥','♠','♦']
+        #ordem_naipes = ['♣','♥','♠','♦']
+        # Ordem crescente de força: Ouros(0), Espadas(1), Copas(2), Paus/Zap(3)
+        ordem_naipes = ['♦', '♠', '♥', '♣'] 
         return 100 + ordem_naipes.index(naipe)
 
     ordem = ['4','5','6','7','Q','J','K','A','2','3']
@@ -209,26 +211,29 @@ class TrucoGUI:
         v1 = valor_carta(carta_jogador, self.manilha)
         v2 = valor_carta(carta_cpu, self.manilha)
 
-        print(f"Rodada {self.rodadas + 1}: Você jogou [{carta_jogador}] e a CPU jogou [{carta_cpu}]")
+        print(f"Rodada {self.rodadas + 1}: Jogador jogou [{carta_jogador}] e a CPU jogou [{carta_cpu}]")
 
         if v1 > v2:
             self.pontos_jogador += 1
             resultado = "Cpu perdeu! Score reduzido"
 
             # adicionado: checa se perdeu usando a manilha
-            if v1 >= 100: # se usou manilha e perdeu
+            if v2 >= 100: # se usou manilha e perdeu
                 self.atualizar_score(-25, "Desperdício de Manilha (-25)")
+                print("Manilha utilizada:", carta_cpu)
             else: #perda no geral
                 self.atualizar_score(-10, "Derrota na Rodada (-10)")
        
         elif v2 > v1:#vitoria da CPU
             self.pontos_cpu += 1
             resultado = "CPU ganhou"
-                # adicionado: checagem de eficiência no uso da manilha
+                # checagem de eficiência no uso da manilha
             if v2 < 100: #verifica que ele não usou manilha mas ganhou mesmo assim
                 self.atualizar_score(15,"Vitória sem gastar Manilha (+15)")
-            else: #vitória normal
+            else: #vitória com manilha
                 self.atualizar_score(10,"Vitória na Rodada (+10)")
+                print("Manilha utilizada:", carta_cpu)
+
         else:
             resultado = "Empate"
             self.atualizar_score(0, "Rodada Empatada (0)")
@@ -247,12 +252,12 @@ class TrucoGUI:
             self.root.after(1000, self.fim_partida)
 
     def fim_partida(self):
-        if self.pontos_cpu > self.pontos_jogador:
+        if self.pontos_cpu < self.pontos_jogador:
             texto = "CPU perdeu a mão!"
             self.atualizar_score(-20,"CPU perdeu a Mão (-20 pontos)")
-        elif self.pontos_cpu < self.pontos_jogador:
+        elif self.pontos_cpu > self.pontos_jogador:
             texto = "CPU venceu a mão!"
-            self.atualizar_score(50, "Vitória da Mão (50pontos)")
+            self.atualizar_score(50, "Vitória da Mão (50 pontos)")
         else:
             texto = "Empate na mão!"
             self.atualizar_score(0, "Empate Geral (0 pontos)")
