@@ -17,7 +17,7 @@ O ambiente foi desenvolvido para possibilitar futuras implementações de Inteli
 
 ## Regras Implementadas
 
-O jogo segue as principais regras do Truco:
+O jogo segue as principais regras do Truco Paulista:
 
 - Cada jogador recebe 3 cartas  
 - Uma carta vira define a manilha  
