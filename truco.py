@@ -1,5 +1,6 @@
 import tkinter as tk
 import random
+import pickle
 from PIL import Image, ImageTk
 
 VALORES = ['4','5','6','7','Q','J','K','A','2','3']
@@ -32,6 +33,93 @@ def valor_carta(carta, manilha):
     ordem = ['4','5','6','7','Q','J','K','A','2','3']
     return ordem.index(valor)
 
+def categoria_carta(valor):
+    if valor >= 100:
+        return "MANILHA"
+    elif valor >= 7:
+        return "FORTE"
+    elif valor >= 4:
+        return "MEDIA"
+    else:
+        return "FRACA"
+
+
+class QLearningAgent:
+    def __init__(self, epsilon=0.1, alpha=0.3, gamma=0.95):
+        self.q_table = {}
+        self.epsilon = epsilon  # Taxa de exploração
+        self.alpha = alpha      # Taxa de aprendizado
+        self.gamma = gamma      # Fator de desconto
+        self.last_state = None
+        self.last_action = None
+        self.ACTIONS = ["FRACA", "MEDIA", "FORTE", "MANILHA"]
+
+    def get_state(self, mao_cpu, manilha, carta_jogador=None, rodada_atual=0):
+        cat_mao = sorted([categoria_carta(valor_carta(c, manilha)) for c in mao_cpu])
+        cat_carta_jogador = categoria_carta(valor_carta(carta_jogador, manilha)) if carta_jogador else "NINGUEM"
+        
+        state = (
+            tuple(cat_mao),
+            cat_carta_jogador,
+            rodada_atual
+        )
+        return state
+
+    def get_available_actions(self, mao_cpu, manilha):
+        categorias_disponiveis = set()
+        for carta in mao_cpu:
+            cat = categoria_carta(valor_carta(carta, manilha))
+            categorias_disponiveis.add(cat)
+        return list(categorias_disponiveis)
+
+    def get_card_index_by_category(self, mao_cpu, manilha, categoria_alvo):
+        for idx, carta in enumerate(mao_cpu):
+            if categoria_carta(valor_carta(carta, manilha)) == categoria_alvo:
+                return idx
+        return 0
+
+    def choose_action(self, state, available_actions):
+        if random.uniform(0, 1) < self.epsilon:
+            return random.choice(available_actions)
+        else:
+            if state not in self.q_table:
+                self.q_table[state] = {a: 0.0 for a in self.ACTIONS}
+            
+            valid_q_values = {a: self.q_table[state][a] for a in available_actions}
+            max_q = max(valid_q_values.values())
+            best_actions = [a for a in available_actions if self.q_table[state][a] == max_q]
+            return random.choice(best_actions)
+
+    def update_q_value(self, state, action, reward, next_state, next_available_actions):
+        if state not in self.q_table:
+            self.q_table[state] = {a: 0.0 for a in self.ACTIONS}
+        
+        current_q = self.q_table[state][action]
+        
+        if next_state is None or not next_available_actions:
+            max_next_q = 0.0
+        else:
+            if next_state not in self.q_table:
+                self.q_table[next_state] = {a: 0.0 for a in self.ACTIONS}
+            valid_q_values = {a: self.q_table[next_state][a] for a in next_available_actions}
+            max_next_q = max(valid_q_values.values())
+        
+        new_q = current_q + self.alpha * (reward + self.gamma * max_next_q - current_q)
+        self.q_table[state][action] = new_q
+
+    def save_q_table(self, filename="q_table.pkl"):
+        with open(filename, 'wb') as f:
+            pickle.dump(self.q_table, f)
+        print(f"Q-table salva em {filename} (tamanho: {len(self.q_table)} estados)")
+
+    def load_q_table(self, filename="q_table.pkl"):
+        try:
+            with open(filename, 'rb') as f:
+                self.q_table = pickle.load(f)
+            print(f"Q-table carregada de {filename} (tamanho: {len(self.q_table)} estados)")
+        except FileNotFoundError:
+            print("Arquivo Q-table não encontrado, iniciando com tabela vazia")
+
 class TrucoGUI:
     def __init__(self, root):
         self.root = root
@@ -42,6 +130,11 @@ class TrucoGUI:
         # adicionado: 
         # ===== SCORE =====
         self.score_total = 0
+
+        # ===== Q-LEARNING AGENT =====
+        self.agent = QLearningAgent(epsilon=0.2, alpha=0.3, gamma=0.9)
+        self.current_reward = 0
+        self.agent.load_q_table()
 
         # ===== IMAGENS =====
         self.imagens = {}
@@ -200,7 +293,19 @@ class TrucoGUI:
         self.root.after(800, lambda: self.jogada_cpu(carta_jogador))
 
     def jogada_cpu(self, carta_jogador):
-        carta_cpu = random.choice(self.cpu)
+        reward_rodada = 0
+        
+        state = self.agent.get_state(
+            mao_cpu=self.cpu.copy(),
+            manilha=self.manilha,
+            carta_jogador=carta_jogador,
+            rodada_atual=self.rodadas
+        )
+        available_actions = self.agent.get_available_actions(self.cpu, self.manilha)
+        action = self.agent.choose_action(state, available_actions)
+        
+        idx_carta = self.agent.get_card_index_by_category(self.cpu, self.manilha, action)
+        carta_cpu = self.cpu[idx_carta]
         self.cpu.remove(carta_cpu)
 
         img_cpu = self.imagens[carta_cpu]
@@ -211,32 +316,40 @@ class TrucoGUI:
         v1 = valor_carta(carta_jogador, self.manilha)
         v2 = valor_carta(carta_cpu, self.manilha)
 
-        print(f"Rodada {self.rodadas + 1}: Jogador jogou [{carta_jogador}] e a CPU jogou [{carta_cpu}]")
+        jogador_carta_sem_naipe = carta_jogador[:-1]
+        cpu_carta_sem_naipe = carta_cpu[:-1]
+        print(f"Rodada {self.rodadas + 1}: Jogador jogou [{jogador_carta_sem_naipe}] (Cat: {categoria_carta(v1)}) | CPU jogou [{cpu_carta_sem_naipe}] (Cat: {categoria_carta(v2)}) (Ação: {action})")
 
         if v1 > v2:
             self.pontos_jogador += 1
             resultado = "Cpu perdeu! Score reduzido"
-
-            # adicionado: checa se perdeu usando a manilha
-            if v2 >= 100: # se usou manilha e perdeu
-                self.atualizar_score(-25, "Desperdício de Manilha (-25)")
-                print("Manilha utilizada:", carta_cpu)
-            else: #perda no geral
-                self.atualizar_score(-10, "Derrota na Rodada (-10)")
+            reward_rodada = -10
+            self.atualizar_score(-10, "Derrota na Rodada (-10)")
+            if v2 >= 100:
+                print("  [Aviso] Perdeu usando manilha!")
        
-        elif v2 > v1:#vitoria da CPU
+        elif v2 > v1:
             self.pontos_cpu += 1
             resultado = "CPU ganhou"
-                # checagem de eficiência no uso da manilha
-            if v2 < 100: #verifica que ele não usou manilha mas ganhou mesmo assim
-                self.atualizar_score(15,"Vitória sem gastar Manilha (+15)")
-            else: #vitória com manilha
-                self.atualizar_score(10,"Vitória na Rodada (+10)")
-                print("Manilha utilizada:", carta_cpu)
+            reward_rodada = 10
+            self.atualizar_score(10, "Vitória na Rodada (+10)")
 
         else:
             resultado = "Empate"
+            reward_rodada = 0
             self.atualizar_score(0, "Rodada Empatada (0)")
+
+        next_state = self.agent.get_state(
+            mao_cpu=self.cpu.copy(),
+            manilha=self.manilha,
+            carta_jogador=None,
+            rodada_atual=self.rodadas + 1
+        )
+        next_available_actions = self.agent.get_available_actions(self.cpu, self.manilha)
+        
+        self.agent.update_q_value(state, action, reward_rodada, next_state, next_available_actions)
+        self.agent.last_state = state
+        self.agent.last_action = action
 
         self.rodadas += 1
 
@@ -245,22 +358,37 @@ class TrucoGUI:
         )
 
         if self.pontos_jogador == 2 or self.pontos_cpu == 2 or self.rodadas == 3:
-            #adicionado: trava os outros botões para evitar jogadas na hora errada e confusões no score
             for btn in self.cartas_btn:
                 btn.config(state='disabled')
 
             self.root.after(1000, self.fim_partida)
 
     def fim_partida(self):
+        reward_final = 0
+        
         if self.pontos_cpu < self.pontos_jogador:
             texto = "CPU perdeu a mão!"
-            self.atualizar_score(-20,"CPU perdeu a Mão (-20 pontos)")
+            reward_final = -50
+            self.atualizar_score(-50,"CPU perdeu a Mão (-50 pontos)")
         elif self.pontos_cpu > self.pontos_jogador:
             texto = "CPU venceu a mão!"
+            reward_final = 50
             self.atualizar_score(50, "Vitória da Mão (50 pontos)")
         else:
             texto = "Empate na mão!"
+            reward_final = 0
             self.atualizar_score(0, "Empate Geral (0 pontos)")
+        
+        if self.agent.last_state is not None and self.agent.last_action is not None:
+            self.agent.update_q_value(
+                self.agent.last_state, 
+                self.agent.last_action, 
+                reward_final, 
+                None, 
+                []
+            )
+        
+        self.agent.save_q_table()
 
         self.label_status.config(text=texto)
         self.root.after(2000, self.nova_rodada)
