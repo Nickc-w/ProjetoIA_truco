@@ -76,10 +76,39 @@ class QLearningAgent:
     def get_available_actions_from_state(self, state):
         return list(range(len(state[0])))
 
+#apenas para fins de explicação, não necessário para o código principal
+    def imprimir_q_table(self):
+        if not self.q_table:
+            print("Q-table está vazia!")
+            return
+        
+        print("\n" + "="*150)
+        print(f"{'Q-TABLE':^150}")
+        print("="*150)
+        print(f"{'Estado (Cartas CPU)':<35} | {'Carta Jogador':<15} | {'Ação 0':<10} | {'Ação 1':<10} | {'Ação 2':<10}")
+        print("-"*150)
+        
+        for state in self.q_table:
+            cartas_cpu, carta_jog = state
+            q_values = self.q_table[state]
+            
+            q0 = f"{q_values.get(0, 0.0):.2f}"
+            q1 = f"{q_values.get(1, 0.0):.2f}"
+            q2 = f"{q_values.get(2, 0.0):.2f}"
+            
+            str_cartas = str(cartas_cpu)[:32]
+            str_jogador = str(carta_jog)[:13]
+            
+            print(f"{str_cartas:<35} | {str_jogador:<15} | {q0:<10} | {q1:<10} | {q2:<10}")
+        
+        print("-"*150)
+        print(f"Total de estados: {len(self.q_table)}\n")
+
     def save_q_table(self, filename="q_table.pkl"):
         with open(filename, 'wb') as f:
             pickle.dump(self.q_table, f)
         print(f"Q-table salva com {len(self.q_table)} estados")
+        self.imprimir_q_table() # imprime a q-table no terminal
 
     def load_q_table(self, filename="q_table.pkl"):
         try:
