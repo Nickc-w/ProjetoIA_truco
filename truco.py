@@ -65,10 +65,10 @@ class QLearningAgent:
         self.epsilon_decay = 0.995
         self.epsilon = 0.2  # padrão na GUI (exploração moderada contra humano)
 
-    def get_state(self, mao_cpu, manilha, carta_jogador=None):
+    def get_state(self, mao_cpu, manilha, carta_jogador=None, pontos_cpu=0, pontos_jogador=0, rodada=1):
         valores_mao = sorted([valor_carta(c, manilha) for c in mao_cpu])
         carta_jog_valor = valor_carta(carta_jogador, manilha) if carta_jogador else -1
-        return (tuple(valores_mao), carta_jog_valor)
+        return (tuple(valores_mao), carta_jog_valor, pontos_cpu, pontos_jogador, rodada)
 
     def get_available_actions(self, mao_cpu):
         return list(range(len(mao_cpu)))
@@ -109,11 +109,11 @@ class QLearningAgent:
         print("\n" + "="*150)
         print(f"{'Q-TABLE':^150}")
         print("="*150)
-        print(f"{'Estado (Cartas CPU)':<35} | {'Carta Jogador':<15} | {'Ação 0':<10} | {'Ação 1':<10} | {'Ação 2':<10}")
+        print(f"{'Estado (Cartas CPU)':<35} | {'Carta Jogador':<15} | {'Placar':<8} | {'Rodada':<6} | {'Ação 0':<10} | {'Ação 1':<10} | {'Ação 2':<10}")
         print("-"*150)
         
         for state in self.q_table:
-            cartas_cpu, carta_jog = state
+            cartas_cpu, carta_jog, pontos_cpu, pontos_jogador, rodada = state
             q_values = self.q_table[state]
             
             q0 = f"{q_values.get(0, 0.0):.2f}"
@@ -122,8 +122,9 @@ class QLearningAgent:
             
             str_cartas = str(cartas_cpu)[:32]
             str_jogador = str(carta_jog)[:13]
+            placar = f"{pontos_cpu}-{pontos_jogador}"
             
-            print(f"{str_cartas:<35} | {str_jogador:<15} | {q0:<10} | {q1:<10} | {q2:<10}")
+            print(f"{str_cartas:<35} | {str_jogador:<15} | {placar:<8} | {rodada:<6} | {q0:<10} | {q1:<10} | {q2:<10}")
         
         print("-"*150)
         print(f"Total de estados: {len(self.q_table)}\n")
@@ -132,16 +133,19 @@ class QLearningAgent:
         """Exporta a Q-table completa para CSV (Excel / VS Code)."""
         with open(filename, "w", newline="", encoding="utf-8-sig") as f:
             writer = csv.writer(f)
-            writer.writerow(["Estado (Cartas CPU)", "Carta Jogador", "Ação 0", "Ação 1", "Ação 2"])
+            writer.writerow(["Estado (Cartas CPU)", "Carta Jogador", "Placar CPU", "Placar Jogador", "Rodada", "Ação 0", "Ação 1", "Ação 2"])
 
             for state in sorted(self.q_table, key=str):
-                if len(state) != 2:
+                if len(state) != 5:
                     continue
-                cartas_cpu, carta_jog = state
+                cartas_cpu, carta_jog, pontos_cpu, pontos_jogador, rodada = state
                 q_values = self.q_table[state]
                 writer.writerow([
                     str(cartas_cpu),
                     carta_jog if carta_jog != -1 else "",
+                    pontos_cpu,
+                    pontos_jogador,
+                    rodada,
                     f"{q_values.get(0, 0.0):.2f}",
                     f"{q_values.get(1, 0.0):.2f}",
                     f"{q_values.get(2, 0.0):.2f}",
@@ -160,7 +164,7 @@ class QLearningAgent:
                 self.q_table = pickle.load(f)
             if self.q_table:
                 primeiro_estado = next(iter(self.q_table))
-                if len(primeiro_estado) != 2:
+                if len(primeiro_estado) != 5:
                     print("Q-table em formato incompatível detectada. Iniciando do zero (retreinamento necessário).")
                     self.q_table = {}
                 else:
@@ -195,7 +199,9 @@ class QLearningAgent:
             carta_jogador = oponente_fn(mao_jogador)
             mao_jogador.remove(carta_jogador)
 
-            state = self.get_state(mao_cpu.copy(), manilha, carta_jogador)
+            state = self.get_state(
+                mao_cpu.copy(), manilha, carta_jogador, pontos_cpu, pontos_jogador, rodada=rodadas + 1
+            )
             available_actions = self.get_available_actions(mao_cpu)
             action = self.choose_action(state, available_actions)
 
@@ -216,7 +222,10 @@ class QLearningAgent:
             if mao_terminou:
                 reward += calcular_reward_mao(pontos_cpu, pontos_jogador)
 
-            next_state = self.get_state(mao_cpu.copy(), manilha)
+            proxima_rodada = rodadas + 1 if not mao_terminou else rodadas
+            next_state = self.get_state(
+                mao_cpu.copy(), manilha, pontos_cpu=pontos_cpu, pontos_jogador=pontos_jogador, rodada=proxima_rodada
+            )
             next_available_actions = [] if mao_terminou else self.get_available_actions(mao_cpu)
             recompensa_total += reward
 
@@ -431,7 +440,10 @@ class TrucoGUI:
         self.root.after(800, lambda: self.jogada_cpu(carta_jogador))
 
     def jogada_cpu(self, carta_jogador):
-        state = self.agent.get_state(self.cpu.copy(), self.manilha, carta_jogador)
+        state = self.agent.get_state(
+            self.cpu.copy(), self.manilha, carta_jogador,
+            self.pontos_cpu, self.pontos_jogador, rodada=self.rodadas + 1
+        )
         available_actions = self.agent.get_available_actions(self.cpu)
         action = self.agent.choose_action(state, available_actions)
         
@@ -480,7 +492,11 @@ class TrucoGUI:
         if mao_terminou:
             reward += calcular_reward_mao(self.pontos_cpu, self.pontos_jogador)
 
-        next_state = self.agent.get_state(self.cpu.copy(), self.manilha)
+        proxima_rodada = self.rodadas + 2 if not mao_terminou else self.rodadas + 1
+        next_state = self.agent.get_state(
+            self.cpu.copy(), self.manilha,
+            pontos_cpu=self.pontos_cpu, pontos_jogador=self.pontos_jogador, rodada=proxima_rodada
+        )
         next_available_actions = [] if mao_terminou else self.agent.get_available_actions(self.cpu)
         self.agent.update_q_value(state, action, reward, next_state, next_available_actions)
 
