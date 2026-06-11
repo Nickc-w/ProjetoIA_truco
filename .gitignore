@@ -1,0 +1,4 @@
+q_table.pkl
+q_table.csv
+__pycache__/
+*.pyc
