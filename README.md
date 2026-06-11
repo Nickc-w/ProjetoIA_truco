@@ -103,12 +103,12 @@ Também é possível abrir o arquivo diretamente no Microsoft Excel.
 
 O agente utiliza alguns parâmetros para controlar o processo de aprendizado:
 
-- Epsilon (ε): controla a frequência com que a CPU explora novas ações em vez de utilizar a melhor ação conhecida. Na interface gráfica, o valor padrão é `0.2`.
-- Max epsilon: valor inicial da exploração no treino offline (`1.0`). Quanto maior, mais a CPU explora no começo do `--train`.
-- Min epsilon: valor mínimo de exploração (`0.01`). A CPU nunca explora abaixo disso.
-- Epsilon decay: taxa de redução do epsilon após cada partida (`0.995`). Faz a CPU passar gradualmente de explorar para usar o que já aprendeu.
-- Alpha (α): controla o quanto novas experiências influenciam os valores armazenados na Q-Table (`0.3`).
-- Gamma (γ): controla a importância das recompensas futuras durante o processo de aprendizado (`0.9`).
+- Epsilon (ε): controla a frequência com que a CPU explora novas ações em vez de utilizar a melhor ação conhecida.
+- Max epsilon: valor inicial de exploração no treino offline. Quanto maior, mais a CPU tenta jogadas aleatórias no começo do `--train`.
+- Min epsilon: valor mínimo de exploração. Evita que a CPU pare de explorar completamente.
+- Epsilon decay: controla a redução gradual do epsilon após cada partida, fazendo a CPU passar de explorar para usar o que já aprendeu.
+- Alpha (α): controla o quanto novas experiências influenciam os valores armazenados na Q-Table.
+- Gamma (γ): controla a importância das recompensas futuras durante o processo de aprendizado.
 
 
 ### Interface gráfica com Tkinter
