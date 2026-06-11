@@ -1,6 +1,8 @@
 import tkinter as tk
 import random
 import pickle
+import sys
+import csv
 from PIL import Image, ImageTk
 
 VALORES = ['4','5','6','7','Q','J','K','A','2','3']
@@ -34,16 +36,38 @@ def valor_carta(carta, manilha):
     return ordem.index(valor)
 
 
+def calcular_reward_cpu(v_jogador, v_cpu):
+    """Recompensa da CPU por rodada (mesma lógica usada na GUI e no simulador)."""
+    if v_jogador > v_cpu:
+        return -25 if v_cpu >= 100 else -10
+    if v_cpu > v_jogador:
+        return 15 if v_cpu < 100 else 10
+    return 0
+
+
+def calcular_reward_mao(pontos_cpu, pontos_jogador):
+    """Recompensa da CPU por vitória/derrota/empate na mão (partida)."""
+    if pontos_cpu > pontos_jogador:
+        return 50
+    if pontos_cpu < pontos_jogador:
+        return -50
+    return 0
+
+
 class QLearningAgent:
     def __init__(self):
         self.q_table = {}
-        self.epsilon = 0.2  # 20% de chance de explorar
         self.alpha = 0.3    # taxa de aprendizado
         self.gamma = 0.9    # fator de desconto
+        # Exploração: decai de max para min ao longo das partidas
+        self.max_epsilon = 1.0
+        self.min_epsilon = 0.01
+        self.epsilon_decay = 0.995
+        self.epsilon = 0.2  # padrão na GUI (exploração moderada contra humano)
 
     def get_state(self, mao_cpu, manilha, carta_jogador=None):
         valores_mao = sorted([valor_carta(c, manilha) for c in mao_cpu])
-        carta_jog_valor = valor_carta(carta_jogador, manilha) if carta_jogador else None
+        carta_jog_valor = valor_carta(carta_jogador, manilha) if carta_jogador else -1
         return (tuple(valores_mao), carta_jog_valor)
 
     def get_available_actions(self, mao_cpu):
@@ -104,19 +128,152 @@ class QLearningAgent:
         print("-"*150)
         print(f"Total de estados: {len(self.q_table)}\n")
 
+    def export_q_table_csv(self, filename="q_table.csv"):
+        """Exporta a Q-table completa para CSV (Excel / VS Code)."""
+        with open(filename, "w", newline="", encoding="utf-8-sig") as f:
+            writer = csv.writer(f)
+            writer.writerow(["Estado (Cartas CPU)", "Carta Jogador", "Ação 0", "Ação 1", "Ação 2"])
+
+            for state in sorted(self.q_table, key=str):
+                if len(state) != 2:
+                    continue
+                cartas_cpu, carta_jog = state
+                q_values = self.q_table[state]
+                writer.writerow([
+                    str(cartas_cpu),
+                    carta_jog if carta_jog != -1 else "",
+                    f"{q_values.get(0, 0.0):.2f}",
+                    f"{q_values.get(1, 0.0):.2f}",
+                    f"{q_values.get(2, 0.0):.2f}",
+                ])
+
     def save_q_table(self, filename="q_table.pkl"):
         with open(filename, 'wb') as f:
             pickle.dump(self.q_table, f)
         print(f"Q-table salva com {len(self.q_table)} estados")
-        self.imprimir_q_table() # imprime a q-table no terminal
+        self.export_q_table_csv()
+        print("CSV atualizado com sucesso")
 
     def load_q_table(self, filename="q_table.pkl"):
         try:
             with open(filename, 'rb') as f:
                 self.q_table = pickle.load(f)
-            print(f"Q-table carregada com {len(self.q_table)} estados")
+            if self.q_table:
+                primeiro_estado = next(iter(self.q_table))
+                if len(primeiro_estado) != 2:
+                    print("Q-table em formato incompatível detectada. Iniciando do zero (retreinamento necessário).")
+                    self.q_table = {}
+                else:
+                    print(f"Q-table carregada com {len(self.q_table)} estados")
+            else:
+                print("Q-table carregada vazia")
         except FileNotFoundError:
             print("Q-table não encontrada, começando do zero")
+
+    def decay_epsilon(self):
+        """Reduz epsilon após cada partida (explora menos conforme aprende)."""
+        self.epsilon = max(self.min_epsilon, self.epsilon * self.epsilon_decay)
+
+    def _simular_partida(self, learning=True, oponente_fn=None):
+        """Simula uma mão completa sem GUI. Reutiliza get_state, choose_action e update_q_value."""
+        if oponente_fn is None:
+            oponente_fn = lambda mao: random.choice(mao)
+
+        baralho = gerar_baralho()
+        random.shuffle(baralho)
+        mao_jogador = list(baralho[:3])
+        mao_cpu = list(baralho[3:6])
+        vira = random.choice(baralho)
+        manilha = proxima_carta(vira[:-1])
+
+        pontos_cpu = 0
+        pontos_jogador = 0
+        rodadas = 0
+        recompensa_total = 0
+
+        while rodadas < 3 and pontos_cpu < 2 and pontos_jogador < 2:
+            carta_jogador = oponente_fn(mao_jogador)
+            mao_jogador.remove(carta_jogador)
+
+            state = self.get_state(mao_cpu.copy(), manilha, carta_jogador)
+            available_actions = self.get_available_actions(mao_cpu)
+            action = self.choose_action(state, available_actions)
+
+            carta_cpu = mao_cpu.pop(action)
+            v1 = valor_carta(carta_jogador, manilha)
+            v2 = valor_carta(carta_cpu, manilha)
+            reward = calcular_reward_cpu(v1, v2)
+
+            if v1 > v2:
+                pontos_jogador += 1
+            elif v2 > v1:
+                pontos_cpu += 1
+
+            rodadas += 1
+            mao_terminou = pontos_jogador == 2 or pontos_cpu == 2 or rodadas == 3
+
+            # Na última rodada da mão: soma recompensa da partida e encerra episódio
+            if mao_terminou:
+                reward += calcular_reward_mao(pontos_cpu, pontos_jogador)
+
+            next_state = self.get_state(mao_cpu.copy(), manilha)
+            next_available_actions = [] if mao_terminou else self.get_available_actions(mao_cpu)
+            recompensa_total += reward
+
+            if learning:
+                self.update_q_value(state, action, reward, next_state, next_available_actions)
+
+        return {
+            "reward": recompensa_total,
+            "cpu_venceu": pontos_cpu > pontos_jogador,
+            "pontos_cpu": pontos_cpu,
+            "pontos_jogador": pontos_jogador,
+        }
+
+    def train(self, episodes=1000, log_interval=100):
+        """Treina offline por N partidas simuladas (sem GUI)."""
+        self.epsilon = self.max_epsilon
+        print(f"Iniciando treino: {episodes} partidas | epsilon={self.epsilon:.3f}")
+
+        for ep in range(1, episodes + 1):
+            resultado = self._simular_partida(learning=True)
+            self.decay_epsilon()
+
+            if ep % log_interval == 0:
+                print(
+                    f"Ep {ep}/{episodes} | epsilon={self.epsilon:.3f} | "
+                    f"reward={resultado['reward']} | "
+                    f"placar={resultado['pontos_cpu']}-{resultado['pontos_jogador']}"
+                )
+
+        self.save_q_table()
+        print("Treino finalizado.")
+
+    def evaluate(self, episodes=100):
+        """Avalia a política aprendida sem atualizar a Q-table (ε=0, só exploração)."""
+        epsilon_original = self.epsilon
+        self.epsilon = 0.0
+
+        vitorias = 0
+        recompensa_total = 0.0
+
+        for _ in range(episodes):
+            resultado = self._simular_partida(learning=False)
+            recompensa_total += resultado["reward"]
+            if resultado["cpu_venceu"]:
+                vitorias += 1
+
+        self.epsilon = epsilon_original
+        taxa = 100 * vitorias / episodes
+        media = recompensa_total / episodes
+        derrotas = episodes - vitorias
+
+        print(f"\nAvaliação ({episodes} partidas):")
+        print(f"Vitórias: {vitorias}")
+        print(f"Derrotas: {derrotas}")
+        print(f"Taxa de vitória: {taxa:.1f}%")
+        print(f"Reward médio: {media:.1f}\n")
+        return vitorias / episodes
 
 
 class TrucoGUI:
@@ -274,8 +431,6 @@ class TrucoGUI:
         self.root.after(800, lambda: self.jogada_cpu(carta_jogador))
 
     def jogada_cpu(self, carta_jogador):
-        reward = 0
-        
         state = self.agent.get_state(self.cpu.copy(), self.manilha, carta_jogador)
         available_actions = self.agent.get_available_actions(self.cpu)
         action = self.agent.choose_action(state, available_actions)
@@ -297,30 +452,36 @@ class TrucoGUI:
             resultado = "Cpu perdeu! Score reduzido"
             if v2 >= 100:
                 self.atualizar_score(-25, "Desperdício de Manilha (-25)")
-                reward = -25
                 print("Manilha utilizada:", carta_cpu)
             else:
                 self.atualizar_score(-10, "Derrota na Rodada (-10)")
-                reward = -10
-       
+
         elif v2 > v1:
             self.pontos_cpu += 1
             resultado = "CPU ganhou"
             if v2 < 100:
                 self.atualizar_score(15,"Vitória sem gastar Manilha (+15)")
-                reward = 15
             else:
                 self.atualizar_score(10,"Vitória na Rodada (+10)")
-                reward = 10
                 print("Manilha utilizada:", carta_cpu)
 
         else:
             resultado = "Empate"
             self.atualizar_score(0, "Rodada Empatada (0)")
-            reward = 0
+
+        reward = calcular_reward_cpu(v1, v2)
+
+        # Última rodada da mão: inclui recompensa da partida na mesma atualização da Q-table
+        mao_terminou = (
+            self.pontos_jogador == 2
+            or self.pontos_cpu == 2
+            or self.rodadas + 1 == 3
+        )
+        if mao_terminou:
+            reward += calcular_reward_mao(self.pontos_cpu, self.pontos_jogador)
 
         next_state = self.agent.get_state(self.cpu.copy(), self.manilha)
-        next_available_actions = self.agent.get_available_actions(self.cpu)
+        next_available_actions = [] if mao_terminou else self.agent.get_available_actions(self.cpu)
         self.agent.update_q_value(state, action, reward, next_state, next_available_actions)
 
         self.rodadas += 1
@@ -332,6 +493,7 @@ class TrucoGUI:
             self.root.after(1000, self.fim_partida)
 
     def fim_partida(self):
+        # Placar visual da mão (o aprendizado já ocorreu na última jogada em jogada_cpu)
         if self.pontos_cpu < self.pontos_jogador:
             texto = "CPU perdeu a mão!"
             self.atualizar_score(-50, "Perdeu a Mão (-50)")
@@ -341,13 +503,28 @@ class TrucoGUI:
         else:
             texto = "Empate na mão!"
             self.atualizar_score(0, "Empate Geral (0 pontos)")
-        
+
+        self.agent.decay_epsilon()
         self.agent.save_q_table()
         
         self.label_status.config(text=texto)
         self.root.after(2000, self.nova_rodada)
 
 if __name__ == "__main__":
-    root = tk.Tk()
-    app = TrucoGUI(root)
-    root.mainloop()
+    if len(sys.argv) > 1 and sys.argv[1] == "--train":
+        # Treino offline: python truco.py --train [episodios]
+        episodes = int(sys.argv[2]) if len(sys.argv) > 2 else 1000
+        agent = QLearningAgent()
+        agent.load_q_table()
+        agent.train(episodes=episodes)
+    elif len(sys.argv) > 1 and sys.argv[1] == "--eval":
+        # Avaliação offline: python truco.py --eval [episodios]
+        episodes = int(sys.argv[2]) if len(sys.argv) > 2 else 100
+        agent = QLearningAgent()
+        agent.load_q_table()
+        agent.evaluate(episodes=episodes)
+    else:
+        # Modo normal: interface gráfica contra jogador humano
+        root = tk.Tk()
+        app = TrucoGUI(root)
+        root.mainloop()

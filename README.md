@@ -89,11 +89,21 @@ Ao longo das partidas, a CPU passa a priorizar ações que historicamente gerara
 
 O agente utiliza a estratégia epsilon-greedy, alternando entre explorar novas ações e utilizar o conhecimento já adquirido armazenado na Q-Table.
 
+Sempre que a Q-table é salva, o terminal exibe apenas informações resumidas sobre o aprendizado e a exportação (quantidade de estados e confirmação do CSV). A tabela completa é exportada automaticamente para `q_table.csv`, permitindo visualização detalhada no Excel ou no VS Code. O armazenamento principal da IA continua sendo o arquivo `q_table.pkl`.
+
+### Como visualizar o `q_table.csv`
+
+Para ver a tabela organizada em colunas no VS Code, instale as extensões **CSV** e **Excel Viewer**.
+
+Depois de abrir o arquivo `q_table.csv`, use `Ctrl + Shift + V` para abrir a visualização em tabela (Excel Viewer: Open Preview).
+
+Também é possível abrir o arquivo diretamente no Microsoft Excel.
+
 ### Parâmetros de Aprendizado
 
 O agente utiliza alguns parâmetros para controlar o processo de aprendizado:
 
-- Epsilon (ε): controla a frequência com que a CPU explora novas ações em vez de utilizar a melhor ação conhecida.
+- Epsilon (ε): controla a frequência com que a CPU explora novas ações em vez de utilizar a melhor ação conhecida. Esse valor diminui aos poucos conforme a CPU joga mais partidas.
 - Alpha (α): controla o quanto novas experiências influenciam os valores armazenados na Q-Table.
 - Gamma (γ): controla a importância das recompensas futuras durante o processo de aprendizado.
 
@@ -133,7 +143,10 @@ O jogo segue as principais regras do Truco Paulista:
 * Atualização automática da Q-table durante as partidas
 * Persistência do aprendizado em arquivo (.pkl)
 * Estratégia de exploração e aproveitamento (epsilon-greedy)
-* Exibição da Q-table e dos estados aprendidos no terminal
+* Exibição resumida da Q-table no terminal (quantidade de estados e confirmação do CSV)
+* Exportação automática da Q-table completa para `q_table.csv`
+* Treinamento offline da CPU pelo terminal (sem abrir a interface gráfica)
+* Avaliação do desempenho da CPU pelo terminal
 
 
 ## Limitações
@@ -148,6 +161,7 @@ Para simplificação do projeto, algumas regras NÃO foram implementadas:
 - tkinter (interface gráfica)
 - Pillow (manipulação de imagens)
 - pickle (persistência da Q-table)
+- csv (exportação da Q-table para visualização)
 - random (embaralhamento e sorteio de cartas)
 
 ## Autores
@@ -159,7 +173,7 @@ Para simplificação do projeto, algumas regras NÃO foram implementadas:
 
 ## Como executar o projeto
 
-1. Baixe ou clone este repositório e execute o arquivo principal do projeto.
+1. Baixe ou clone este repositório.
 
 2. Instale a biblioteca necessária:
 
@@ -167,11 +181,73 @@ Para simplificação do projeto, algumas regras NÃO foram implementadas:
 pip install pillow
 ```
 
-3. Execute o arquivo `truco.py` utilizando o botão Run da sua IDE
-ou pelo terminal:
+3. Abra o terminal na pasta do projeto (onde está o arquivo `truco.py`).
+
+4. Escolha uma das opções abaixo.
+
+### Jogar normalmente (interface gráfica)
+
+Abre o jogo na tela. Você joga contra a CPU clicando nas cartas.
 
 ```bash
 python truco.py
 ```
 
+A CPU aprende durante as partidas e salva o progresso em `q_table.pkl`. Ao fim de cada mão, a tabela completa também é exportada para `q_table.csv`.
+
+### Treinar a CPU (pelo terminal, sem abrir o jogo)
+
+Simula várias partidas automaticamente para a CPU aprender mais rápido.
+
+```bash
+python truco.py --train 1000
+```
+
+O número `1000` é a quantidade de partidas simuladas. Você pode trocar:
+
+```bash
+python truco.py --train 50
+python truco.py --train 5000
+```
+
+Quanto maior o número, mais a CPU treina — porém demora mais.
+
+Ao final, o progresso é salvo em `q_table.pkl`. No terminal, são exibidas as mensagens resumidas (`Q-table salva com N estados` e `CSV atualizado com sucesso`) e a tabela completa é exportada para `q_table.csv`.
+
+### Avaliar a CPU (pelo terminal, sem abrir o jogo)
+
+Testa o desempenho da CPU **sem alterar** o que ela já aprendeu.
+
+```bash
+python truco.py --eval 100
+```
+
+O número `100` é a quantidade de partidas de teste. Você pode trocar:
+
+```bash
+python truco.py --eval 50
+python truco.py --eval 200
+```
+
+No final, o terminal exibe um resumo com vitórias, derrotas, taxa de vitória e reward médio. Exemplo:
+
+```text
+Avaliação (100 partidas):
+Vitórias: 52
+Derrotas: 48
+Taxa de vitória: 52.0%
+Reward médio: 10.0
+```
+
+### Ordem sugerida para testar
+
+Se você quer ver se a IA está melhorando, siga estes passos:
+
+1. Treinar: `python truco.py --train 2000`
+2. Avaliar: `python truco.py --eval 200`
+3. Jogar: `python truco.py`
+
+Repita o treino e a avaliação para comparar os resultados.
+
+> **Observação:** também é possível executar o arquivo `truco.py` pelo botão Run da sua IDE, mas os comandos `--train` e `--eval` funcionam apenas pelo terminal.
 
