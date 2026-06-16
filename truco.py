@@ -27,7 +27,7 @@ def valor_carta(carta, manilha):
     naipe = carta[-1]
 
     if valor == manilha:
-        #ordem_naipes = ['♣','♥','♠','♦']
+       
         # Ordem crescente de força: Ouros(0), Espadas(1), Copas(2), Paus/Zap(3)
         ordem_naipes = ['♦', '♠', '♥', '♣'] 
         return 100 + ordem_naipes.index(naipe)
@@ -39,31 +39,31 @@ def valor_carta(carta, manilha):
 def calcular_reward_cpu(v_jogador, v_cpu):
     """Recompensa da CPU por rodada (mesma lógica usada na GUI e no simulador)."""
     if v_jogador > v_cpu:
-        return -25 if v_cpu >= 100 else -10
+        return -1
     if v_cpu > v_jogador:
-        return 15 if v_cpu < 100 else 10
+        return +1
     return 0
 
 
 def calcular_reward_mao(pontos_cpu, pontos_jogador):
     """Recompensa da CPU por vitória/derrota/empate na mão (partida)."""
     if pontos_cpu > pontos_jogador:
-        return 50
+        return 10 * (pontos_cpu - pontos_jogador)  # +10 para vitória 2-0, +20 para vitória 2-1
     if pontos_cpu < pontos_jogador:
-        return -50
+        return -10 * (pontos_jogador - pontos_cpu)
     return 0
 
 
 class QLearningAgent:
     def __init__(self):
         self.q_table = {}
-        self.alpha = 0.3    # taxa de aprendizado
-        self.gamma = 0.9    # fator de desconto
+        self.alpha = 0.9    # taxa de aprendizado
+        self.gamma = 0.7    # fator de desconto
         # Exploração: decai de max para min ao longo das partidas
         self.max_epsilon = 1.0
-        self.min_epsilon = 0.01
-        self.epsilon_decay = 0.995
-        self.epsilon = 0.2  # padrão na GUI (exploração moderada contra humano)
+        self.min_epsilon = 0.1
+        self.epsilon_decay = 0.99997
+        self.epsilon = 0.0  # padrão na GUI (exploração moderada contra humano)
 
     def get_state(self, mao_cpu, manilha, carta_jogador=None, pontos_cpu=0, pontos_jogador=0, rodada=1):
         valores_mao = sorted([valor_carta(c, manilha) for c in mao_cpu])
@@ -78,7 +78,9 @@ class QLearningAgent:
             return random.choice(available_actions)
         else:
             if state not in self.q_table:
+                print(f"Novo estado encontrado: {state} | Inicializando Q-values")
                 self.q_table[state] = {a: 0.0 for a in available_actions}
+
             max_q = max(self.q_table[state].values())
             best_actions = [a for a in available_actions if self.q_table[state][a] == max_q]
             return random.choice(best_actions)
@@ -92,7 +94,7 @@ class QLearningAgent:
         if next_state not in self.q_table or not next_available_actions:
             max_next_q = 0.0
         else:
-            max_next_q = max(self.q_table[next_state].get(a, 0.0) for a in next_available_actions)
+            max_next_q = max(self.q_table[next_state].get(a, -20) for a in next_available_actions)
         
         new_q = current_q + self.alpha * (reward + self.gamma * max_next_q - current_q)
         self.q_table[state][action] = new_q
@@ -265,20 +267,25 @@ class QLearningAgent:
 
         vitorias = 0
         recompensa_total = 0.0
+        empates = 0
 
         for _ in range(episodes):
             resultado = self._simular_partida(learning=False)
             recompensa_total += resultado["reward"]
             if resultado["cpu_venceu"]:
                 vitorias += 1
+            elif resultado["pontos_cpu"] == resultado["pontos_jogador"]:
+                empates += 1
+            
 
         self.epsilon = epsilon_original
         taxa = 100 * vitorias / episodes
         media = recompensa_total / episodes
-        derrotas = episodes - vitorias
+        derrotas = episodes - vitorias - empates
 
         print(f"\nAvaliação ({episodes} partidas):")
         print(f"Vitórias: {vitorias}")
+        print(f"Empates: {empates}")
         print(f"Derrotas: {derrotas}")
         print(f"Taxa de vitória: {taxa:.1f}%")
         print(f"Reward médio: {media:.1f}\n")
@@ -347,6 +354,8 @@ class TrucoGUI:
         self.label_vira_img = tk.Label(self.frame_mesa, bg='#0b6623')
         self.label_vira_img.place(x=700, y=90)
         self.label_vira_img.lift()
+        self.label_manilha = tk.Label(self.frame_mesa, text="", font=('Arial', 11, 'bold'), bg='#C9A227', fg='#1a1a1a', padx=6, pady=2)
+        self.label_manilha.place(x=680, y=215)
 
         # ===== JOGADOR =====
         self.frame_jogador = tk.Frame(root, bg='#0b6623')
@@ -413,6 +422,7 @@ class TrucoGUI:
 
         self.label_vira_img.config(image=self.imagens[self.vira])
         self.label_vira_img.lift()
+        self.label_manilha.config(text=f"Manilha: {self.manilha}")
 
         self.rodadas = 0
         self.pontos_jogador = 0
@@ -463,19 +473,15 @@ class TrucoGUI:
             self.pontos_jogador += 1
             resultado = "Cpu perdeu! Score reduzido"
             if v2 >= 100:
-                self.atualizar_score(-25, "Desperdício de Manilha (-25)")
                 print("Manilha utilizada:", carta_cpu)
-            else:
-                self.atualizar_score(-10, "Derrota na Rodada (-10)")
+            self.atualizar_score(-1, "Derrota na Rodada (-1)")
 
         elif v2 > v1:
             self.pontos_cpu += 1
             resultado = "CPU ganhou"
-            if v2 < 100:
-                self.atualizar_score(15,"Vitória sem gastar Manilha (+15)")
-            else:
-                self.atualizar_score(10,"Vitória na Rodada (+10)")
+            if v2 >= 100:
                 print("Manilha utilizada:", carta_cpu)
+            self.atualizar_score(1, "Vitória na Rodada (+1)")
 
         else:
             resultado = "Empate"
@@ -509,13 +515,14 @@ class TrucoGUI:
             self.root.after(1000, self.fim_partida)
 
     def fim_partida(self):
-        # Placar visual da mão (o aprendizado já ocorreu na última jogada em jogada_cpu)
-        if self.pontos_cpu < self.pontos_jogador:
-            texto = "CPU perdeu a mão!"
-            self.atualizar_score(-50, "Perdeu a Mão (-50)")
-        elif self.pontos_cpu > self.pontos_jogador:
+        # Placar visual da mão (mesmos valores de calcular_reward_mao)
+        reward_mao = calcular_reward_mao(self.pontos_cpu, self.pontos_jogador)
+        if reward_mao > 0:
             texto = "CPU venceu a mão!"
-            self.atualizar_score(50, "Venceu a Mão (+50)")
+            self.atualizar_score(reward_mao, f"Venceu a Mão (+{reward_mao})")
+        elif reward_mao < 0:
+            texto = "CPU perdeu a mão!"
+            self.atualizar_score(reward_mao, f"Perdeu a Mão ({reward_mao})")
         else:
             texto = "Empate na mão!"
             self.atualizar_score(0, "Empate Geral (0 pontos)")
