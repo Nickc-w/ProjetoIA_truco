@@ -15,9 +15,9 @@ O projeto utiliza um agente baseado em Q-Learning para controlar as decisões da
 
 A cada jogada, a CPU observa o estado atual do jogo, escolhe uma ação e recebe uma recompensa de acordo com o resultado obtido. Essas recompensas são utilizadas para atualizar uma Q-table, que armazena o conhecimento adquirido pelo agente ao longo das partidas.
 
-Os estados representam a situação observada pela CPU, considerando as forças das cartas disponíveis em sua mão e a força da carta jogada pelo adversário. As ações representam a escolha de qual carta disponível será utilizada na rodada.
+Os estados representam a situação observada pela CPU, considerando as forças das cartas disponíveis em sua mão, a força da carta jogada pelo adversário, o placar parcial da mão e a rodada atual. As ações representam a escolha de qual carta disponível será utilizada na rodada.
 
-O sistema de recompensas foi desenvolvido para incentivar decisões estratégicas, recompensando vitórias e penalizando derrotas, especialmente em situações que envolvem o uso inadequado de manilhas.
+O sistema de recompensas foi desenvolvido para incentivar decisões estratégicas, recompensando vitórias e penalizando derrotas na rodada e no resultado final da mão.
 
 A Q-table é salva em arquivo, permitindo que o aprendizado seja preservado entre diferentes execuções do programa.
 
@@ -29,23 +29,30 @@ A CPU utiliza a técnica de Aprendizado por Reforço (Q-Learning) para aprender 
 
 Os estados representam a situação atual observada pela CPU.
 
-No projeto, cada estado é composto por:
+No projeto, cada estado é composto por cinco informações:
 
-* As forças das cartas disponíveis na mão da CPU
-* A força da carta jogada pelo adversário
+* As forças das cartas disponíveis na mão da CPU (ordenadas da menor para a maior)
+* A força da carta jogada pelo adversário na rodada (`-1` quando ainda não há carta na mesa)
+* O placar parcial da CPU na mão (quantas rodadas a CPU já venceu: 0, 1 ou 2)
+* O placar parcial do adversário na mão (quantas rodadas o adversário já venceu: 0, 1 ou 2)
+* A rodada atual da mão (1, 2 ou 3)
 
 Exemplo:
 
 ```text
-((0, 5, 103), 8)
+((0, 5, 103), 8, 1, 0, 2)
 ```
 
 Onde:
 
+* `(0, 5, 103)` representa as forças das cartas restantes na mão da CPU
 * `0` representa uma carta fraca
 * `5` representa uma carta de força intermediária
-* `103` representa uma manilha
+* `103` representa a manilha mais forte (Zap)
 * `8` representa a força da carta jogada pelo adversário
+* `1` indica que a CPU já venceu 1 rodada nesta mão
+* `0` indica que o adversário ainda não venceu nenhuma rodada nesta mão
+* `2` indica que a mão está na segunda rodada
 
 Dessa forma, a CPU consegue analisar o contexto atual antes de tomar uma decisão.
 
@@ -63,18 +70,21 @@ Exemplo:
 
 ### Sistema de Recompensas
 
-O aprendizado da CPU é baseado em recompensas e penalidades.
+O aprendizado da CPU é baseado em recompensas e penalidades aplicadas à perspectiva da CPU.
 
-Alguns exemplos utilizados no projeto:
+**Por rodada** (`calcular_reward_cpu`):
 
-* Vitória na rodada: recompensa positiva
-* Derrota na rodada: penalidade
-* Vitória utilizando uma carta comum: recompensa maior
-* Desperdício de manilha: penalidade adicional
-* Vitória da mão: grande recompensa
-* Derrota da mão: grande penalidade
+* CPU vence a rodada: **+1**
+* CPU perde a rodada: **-1**
+* Empate na rodada: **0**
 
-Esse sistema incentiva a CPU a utilizar suas cartas de forma mais eficiente ao longo das partidas.
+**Por mão** (`calcular_reward_mao`, somado na última rodada):
+
+* CPU vence a mão: **+10** por rodada de vantagem no placar final (ex.: 2–0 → +20; 2–1 → +10)
+* CPU perde a mão: **-10** por rodada de desvantagem no placar final (ex.: 0–2 → -20; 1–2 → -10)
+* Empate na mão: **0**
+
+Na interface gráfica, o score exibido utiliza os mesmos valores. Esse sistema incentiva a CPU a vencer rodadas e a fechar a mão com vantagem no placar.
 
 
 ## Q-Table
@@ -90,6 +100,10 @@ Ao longo das partidas, a CPU passa a priorizar ações que historicamente gerara
 O agente utiliza a estratégia epsilon-greedy, alternando entre explorar novas ações e utilizar o conhecimento já adquirido armazenado na Q-Table.
 
 Sempre que a Q-table é salva, o terminal exibe apenas informações resumidas sobre o aprendizado e a exportação (quantidade de estados e confirmação do CSV). A tabela completa é exportada automaticamente para `q_table.csv`, permitindo visualização detalhada no Excel ou no VS Code. O armazenamento principal da IA continua sendo o arquivo `q_table.pkl`.
+
+O CSV contém as colunas: **Estado (Cartas CPU)**, **Carta Jogador**, **Placar CPU**, **Placar Jogador**, **Rodada**, **Ação 0**, **Ação 1** e **Ação 2**.
+
+> **Observação:** Q-tables treinadas com o formato antigo de estado (apenas mão e carta do adversário) não são compatíveis com a versão atual. Nesse caso, o programa inicia uma Q-table vazia e é necessário retreinar com `--train`.
 
 ### Como visualizar o `q_table.csv`
 
@@ -137,7 +151,7 @@ O jogo segue as principais regras do Truco Paulista:
 * Interface gráfica interativa
 * Animação das cartas na mesa
 * CPU jogando automaticamente
-* Cálculo automático da manilha
+* Cálculo automático da manilha e exibição do rank da manilha na interface
 * Comparação de cartas e definição do vencedor
 * Reinício automático da partida
 * Agente de Inteligência Artificial baseado em Q-Learning
@@ -237,7 +251,8 @@ No final, o terminal exibe um resumo com vitórias, derrotas, taxa de vitória e
 ```text
 Avaliação (100 partidas):
 Vitórias: 52
-Derrotas: 48
+Empates: 3
+Derrotas: 45
 Taxa de vitória: 52.0%
 Reward médio: 10.0
 ```
